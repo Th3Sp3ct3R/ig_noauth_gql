@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Profile scraper</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{
+  --bg:#0E1626;--panel:#141E33;--panel2:#1A2742;--line:#27375A;--line2:#34497A;
+  --ink:#E9EFF9;--mute:#8C9BBB;--dim:#5C6C8F;
+  --amber:#F5B841;--ok:#4CD3A5;--bad:#F07070;--warn:#F5B841;--info:#6FA8FF;
+  --num:"Bahnschrift SemiCondensed","Bahnschrift","Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+  --ui:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:Consolas,"Cascadia Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--ui);display:flex;flex-direction:column}
+a{color:var(--info)}
+button{font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line2);border-radius:5px;padding:8px 14px;cursor:pointer;font-weight:600}
+button:hover{background:#22325A}
+button:disabled{opacity:.4;cursor:default}
+button.go{background:var(--amber);border-color:var(--amber);color:#1B1400}
+button.go:hover{background:#FFC85A}
+button.quiet{background:transparent;border-color:transparent;color:var(--mute);padding:6px 8px}
+button.quiet:hover{color:var(--ink);background:var(--panel2)}
+button.bad{color:var(--bad)}
+input[type=text],input[type=number],textarea{font:inherit;color:var(--ink);background:#0B1220;border:1px solid var(--line2);border-radius:5px;padding:8px 10px}
+input:focus,textarea:focus{outline:2px solid var(--amber);outline-offset:1px;border-color:var(--amber)}
+input[type=number]{width:74px;font-family:var(--num);font-size:15px}
+::placeholder{color:var(--dim)}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px}::-webkit-scrollbar-track{background:transparent}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:18px;padding:0 24px;height:58px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{font:600 18px var(--num);letter-spacing:.01em}
+.brand small{display:block;font:12px var(--ui);color:var(--mute);font-weight:400;margin-top:-2px}
+.state{display:flex;align-items:center;gap:8px;color:var(--mute);margin-left:8px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--dim)}
+.dot.on{background:var(--ok);box-shadow:0 0 0 4px rgba(76,211,165,.18)}
+.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}
+.clock{margin-left:auto;font:600 20px var(--num);font-variant-numeric:tabular-nums;color:var(--mute)}
+.clock b{color:var(--ink)}
+
+/* frame */
+.frame{flex:1;display:grid;grid-template-columns:200px 1fr;min-height:0}
+nav{border-right:1px solid var(--line);background:var(--panel);padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+nav button{text-align:left;background:transparent;border:0;border-radius:5px;padding:10px 12px;color:var(--mute);font-weight:500;display:flex;justify-content:space-between;align-items:center}
+nav button:hover{color:var(--ink);background:var(--panel2)}
+nav button.cur{color:var(--ink);background:var(--panel2);box-shadow:inset 3px 0 0 var(--amber)}
+nav button i{font:600 12px var(--num);font-style:normal;color:var(--dim);background:#0B1220;border-radius:9px;padding:1px 7px}
+nav .grow{flex:1}
+nav .foot{padding:10px 12px;color:var(--dim);font-size:12px;line-height:1.5}
+.content{min-height:0;overflow:auto;display:flex;flex-direction:column}
+
+/* progress band */
+.band{padding:22px 28px 18px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#121C31,var(--bg))}
+.hero{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.hero .n{font:600 56px/1 var(--num);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.hero .t{font:500 22px var(--num);color:var(--mute)}
+.hero .rate{margin-left:auto;font:600 22px var(--num);color:var(--amber);font-variant-numeric:tabular-nums}
+.hero .rate small{font:13px var(--ui);color:var(--mute);margin-left:4px}
+.bar{position:relative;height:10px;background:#0B1220;border:1px solid var(--line);border-radius:6px;margin:14px 0 12px;overflow:hidden}
+.bar i{position:absolute;inset:0;width:0;background:var(--amber);transition:width .4s}
+.bar i.run::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 10px,rgba(0,0,0,.18) 10px 12px);animation:mv 1.2s linear infinite}
+@keyframes mv{to{transform:translateX(12px)}}
+@media(prefers-reduced-motion:reduce){.bar i.run::after{animation:none}}
+.stats{display:flex;gap:26px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.stats div{color:var(--mute);font-size:13px}
+.stats b{display:block;font:600 22px/1.1 var(--num);color:var(--ink)}
+.stats .ok b{color:var(--ok)}.stats .bad b{color:var(--bad)}.stats .warn b{color:var(--warn)}
+.msg{display:none;margin-top:14px;padding:10px 14px;border-radius:5px;background:var(--panel2);border-left:3px solid var(--info)}
+.msg.warn{border-color:var(--warn)}.msg.bad{border-color:var(--bad)}.msg.ok{border-color:var(--ok)}
+
+/* pages */
+.page{display:none;padding:22px 28px 40px;flex:1}
+.page.cur{display:block}
+h2{margin:0 0 6px;font:600 20px var(--num)}
+.lead{margin:0 0 18px;color:var(--mute);max-width:70ch}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+@media(max-width:1000px){.cols{grid-template-columns:1fr}.frame{grid-template-columns:160px 1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px 20px}
+.card h3{margin:0 0 10px;font:600 15px var(--num);color:var(--ink)}
+textarea{width:100%;height:230px;font:13px/1.45 var(--mono);resize:vertical}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.row .sp{flex:1}
+.hint{color:var(--mute);font-size:12.5px}
+.file{position:relative;overflow:hidden;display:inline-block}
+.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
+label.chk{display:flex;gap:10px;align-items:center;padding:7px 0;cursor:pointer;border-bottom:1px solid var(--line)}
+label.chk:last-child{border-bottom:0}
+label.chk input{accent-color:var(--amber);width:16px;height:16px}
+pre.log{margin:0;height:300px;overflow:auto;background:#0B1220;border:1px solid var(--line);color:#C9D3E6;font:12px/1.55 var(--mono);padding:10px 12px;border-radius:5px;white-space:pre-wrap}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--mute);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line2);white-space:nowrap;position:sticky;top:0;background:var(--panel)}
+td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.num{text-align:right;font-family:var(--num);font-size:14px}
+td.bio{max-width:34ch;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;background:var(--panel2);color:var(--mute)}
+.tag.ok{background:rgba(76,211,165,.14);color:var(--ok)}.tag.bad{background:rgba(240,112,112,.14);color:var(--bad)}
+.tag.warn{background:rgba(245,184,65,.14);color:var(--warn)}.tag.info{background:rgba(111,168,255,.14);color:var(--info)}
+.tbl{overflow:auto;max-height:520px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.empty{padding:30px;text-align:center;color:var(--dim)}
+.sw{position:relative;width:38px;height:22px;background:var(--line2);border-radius:11px;cursor:pointer;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:left .15s}
+.sw.on{background:var(--ok)}.sw.on::after{left:19px}
+.prx{display:grid;grid-template-columns:26px 44px 1fr 1fr 130px 150px;gap:12px;align-items:center;padding:10px 6px;border-bottom:1px solid var(--line)}
+.prx input[type=checkbox]{accent-color:var(--amber);width:16px;height:16px}
+.prx .u{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+.prx .u small{display:block;color:var(--dim);font-family:var(--ui)}
+.prx .st small{display:block;color:var(--dim);font-size:11.5px}
+.segmented{display:flex;border:1px solid var(--line2);border-radius:6px;overflow:hidden}
+.segmented button{border:0;border-radius:0;background:transparent;color:var(--mute);font-weight:600;padding:7px 14px}
+.segmented button+button{border-left:1px solid var(--line2)}
+.segmented button.cur{background:var(--panel2);color:var(--ink)}
+.segmented button:hover{background:#1E2C4C;color:var(--ink)}
+.thread-row{display:grid;grid-template-columns:44px 1fr 1fr 80px;gap:14px;align-items:center;padding:9px 6px;border-bottom:1px solid var(--line);font-size:13px}
+.thread-row:last-child{border-bottom:0}
+.thread-row.head{color:var(--mute);font-size:12.5px;border-bottom:1px solid var(--line2)}
+.thread-row .num{font:600 13px var(--num);color:var(--mute)}
+.thread-row .proxy{font-family:var(--mono);font-size:12.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thread-row .doing{color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:7px}
+.thread-row .doing .dot2{width:7px;height:7px;border-radius:50%;background:var(--dim);flex:none}
+.thread-row .doing.busy{color:var(--ink)}.thread-row .doing.busy .dot2{background:var(--ok)}
+.thread-row .doing.wait .dot2{background:var(--warn)}
+.thread-row .doing.switch .dot2{background:var(--bad)}
+.thread-row .done{font-family:var(--num);font-size:14px;text-align:right;color:var(--ink)}
+</style></head><body>
+
+<div class="top">
+  <div class="brand">Profile scraper<small>Instagram, logged-out route · runs on this computer</small></div>
+  <div class="state"><span class="dot" id="dot"></span><span id="stateTxt">idle</span></div>
+  <div class="clock" id="clock"><b>0</b> s</div>
+  <button class="go" id="start">Start</button><button id="stop" disabled>Stop</button>
+</div>
+
+<div class="frame">
+  <nav>
+    <button data-p="run" class="cur">Run <i id="n_run"></i></button>
+    <button data-p="fields">Fields <i id="n_fields"></i></button>
+    <button data-p="proxies">Proxies <i id="n_prx"></i></button>
+    <button data-p="results">Results <i id="n_res"></i></button>
+    <div class="grow"></div>
+    <div class="foot">Results are saved to disk as they arrive, so Stop or a block never loses data. Start again to continue.</div>
+  </nav>
+
+  <div class="content">
+    <div class="band">
+      <div class="hero"><span class="n" id="done">0</span><span class="t" id="total">of 0</span>
+        <span class="rate" id="rate">–<small>per minute</small></span></div>
+      <div class="bar"><i id="bar"></i></div>
+      <div class="stats">
+        <div class="ok"><b id="s_ok">0</b>ok</div><div><b id="s_nf">0</b>not found</div>
+        <div class="warn"><b id="s_np">0</b>no posts visible</div><div class="bad"><b id="s_bl">0</b>blocked</div>
+        <div class="bad"><b id="s_er">0</b>errors</div><div><b id="s_fd">0</b>usernames harvested</div>
+        <div><b id="s_via">–</b>connection in use</div>
+      </div>
+      <div class="msg" id="msg"></div>
+    </div>
+
+    <!-- RUN -->
+    <div class="page cur" id="p_run">
+      <div class="cols">
+        <div class="card">
+          <h3>Usernames</h3>
+          <textarea id="names" placeholder="one username per line — @ is optional"></textarea>
+          <div class="row">
+            <span class="file"><button>Load file…</button><input type="file" id="file" accept=".txt,.csv"></span>
+            <button id="useFound">Use harvested usernames</button>
+            <span class="sp"></span><span class="hint" id="cnt"></span>
+          </div>
+          <div class="row" style="margin-top:16px">
+            <label class="hint" style="display:flex;align-items:center;gap:8px"><span class="sw" id="mtSwitch" role="switch"></span> Use multithreading</label>
+            <label class="hint" id="workersWrap">Threads <input type="number" id="workers" value="4" min="2" max="16"></label>
+            <label class="hint">Usernames per IP <input type="number" id="perip" value="140" min="10" max="500"></label>
+            <label class="hint"><input type="checkbox" id="discover" checked style="accent-color:var(--amber)"> Harvest usernames from posts</label>
+          </div>
+        </div>
+        <div class="card"><h3>Log</h3><pre class="log" id="log">Nothing yet. Add usernames and press Start.</pre></div>
+      </div>
+      <div class="card" style="margin-top:22px">
+        <h3>Threads</h3>
+        <div class="thread-row head"><span>#</span><span>Connection</span><span>Doing</span><span>Done</span></div>
+        <div id="threadsBox"></div>
+        <div class="empty" id="threadsEmpty" style="display:none;padding:18px">Not running.</div>
+      </div>
+    </div>
+
+    <!-- FIELDS -->
+    <div class="page" id="p_fields">
+      <h2>What to collect</h2>
+      <p class="lead">Every field is scraped anyway (it costs the same two requests per account); the ticks decide what goes into the export and the results table. Change them any time and re-download.</p>
+      <div class="cols">
+        <div class="card" id="fields"></div>
+        <div class="card"><h3>Posts</h3>
+          <div class="row"><label class="hint">Keep likes and dates of the last <input type="number" id="nposts" value="5" min="1" max="50"> posts</label></div>
+          <p class="hint" style="margin-top:12px">Post 1 is the newest. Accounts that hide like counts get “hidden”; accounts with fewer posts leave the rest empty. Applies to runs started after you change it.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROXIES -->
+    <div class="page" id="p_proxies">
+      <h2>Connections</h2>
+      <p class="lead">One IP gets roughly 300 requests (about 145 accounts) before Instagram blocks it for a few hours. The scraper works through the enabled connections in turn, switches when one gets blocked and rests blocked ones for three hours. Add a rotating mobile or residential proxy to run without stopping.</p>
+      <div class="row" style="margin:-4px 0 14px">
+        <button id="pTestAll">Test all</button>
+        <span class="hint" id="testAllStatus"></span>
+        <span class="sp"></span>
+        <div class="segmented" id="pFilter">
+          <button data-f="all" class="cur">All</button>
+          <button data-f="ok">Working</button>
+          <button data-f="bad">Not working</button>
+          <button data-f="untested">Untested</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="prx" style="grid-template-columns:26px 44px 1fr 1fr 130px 150px;color:var(--mute);font-size:12.5px;border-bottom:1px solid var(--line2)">
+          <input type="checkbox" id="pSelAll" title="Select all"><span>On</span><span>Proxy</span><span>Rotate-IP link</span><span>Status</span><span></span>
+        </div>
+        <div id="prxList"></div>
+        <div class="row" id="prxBulk" style="display:none;margin-top:10px">
+          <span class="hint" id="prxSelCount"></span>
+          <button class="bad quiet" id="pRemoveSel">Remove selected</button>
+          <button class="quiet" id="pTestSel">Test selected</button>
+        </div>
+        <div class="row" style="margin-top:16px;align-items:flex-start">
+          <input type="text" id="pUrl" placeholder="socks5h://user:pass@host:port  or  http://user:pass@host:port" style="flex:2;min-width:260px">
+          <input type="text" id="pRot" placeholder="optional: link that switches the exit IP" style="flex:2;min-width:220px">
+          <button id="pAdd">Add proxy</button>
+          <span class="sp"></span>
+          <span class="file"><button>Load file…</button><input type="file" id="pFile" accept=".txt,.csv"></span>
+        </div>
+        <p class="hint" style="margin-top:10px">Test sends one real request through the connection (costs one call). A connection that fails is skipped until it passes a Test again; a blocked one comes back by itself after three hours. For SOCKS proxies run <code>pip install requests[socks]</code> once.</p>
+        <p class="hint">File import: one proxy per line, e.g. <code>http://138.199.35.215:9002</code> or <code>socks5h://user:pass@host:port</code>. A scheme is added automatically if missing. Add a rotate-IP link after a comma or tab on the same line if you have one. Lines starting with <code>#</code> and duplicates of proxies already in the pool are skipped.</p>
+      </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="page" id="p_results">
+      <div class="row" style="margin:0 0 14px">
+        <div><h2 style="margin:0">Results</h2><span class="hint" id="resHint"></span></div>
+        <span class="sp"></span>
+        <button class="go" id="dl_xlsx">Download Excel</button><button id="dl_csv">Download CSV</button>
+        <button id="dl_found">Harvested usernames</button><button class="bad quiet" id="clear">Clear all results</button>
+      </div>
+      <div class="tbl"><table id="resTbl"></table><div class="empty" id="resEmpty">No results yet.</div></div>
+      <p class="hint" style="margin-top:10px">Showing the latest 60. Downloads contain everything and only the fields ticked on the Fields page.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const FIELDS = __FIELDS__;
+const $ = id => document.getElementById(id);
+const TAG = {ok:'ok', not_found:'', no_posts_visible:'warn', blocked:'bad'};
+
+/* nav */
+document.querySelectorAll('nav button[data-p]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button[data-p]').forEach(x => x.classList.toggle('cur', x === b));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('cur', p.id === 'p_' + b.dataset.p));
+  if (b.dataset.p === 'proxies') { loadProxies(); pollTestAll(); } if (b.dataset.p === 'results') loadResults();
+});
+
+/* fields */
+const fbox = $('fields');
+for (const [key, label] of FIELDS) {
+  const l = document.createElement('label'); l.className = 'chk';
+  l.innerHTML = `<input type="checkbox" data-f="${key}" ${key === 'posts' ? '' : 'checked'}> ${label}`;
+  fbox.appendChild(l);
+}
+const fields = () => [...fbox.querySelectorAll('input:checked')].map(i => i.dataset.f);
+fbox.addEventListener('change', () => { $('n_fields').textContent = fields().length; loadResults(); });
+$('n_fields').textContent = fields().length;
+
+/* multithreading toggle */
+let mtOn = true, mtLastWorkers = 4;
+function renderMt() {
+  $('mtSwitch').classList.toggle('on', mtOn);
+  $('workersWrap').style.opacity = mtOn ? '1' : '.4';
+  $('workers').disabled = !mtOn;
+}
+$('mtSwitch').onclick = () => {
+  if (mtOn) { mtLastWorkers = +$('workers').value || mtLastWorkers; $('workers').value = 1; }
+  else { $('workers').value = mtLastWorkers; }
+  mtOn = !mtOn; renderMt();
+};
+renderMt();
+
+/* usernames */
+const names = () => $('names').value.split(/\r?\n/).map(s => s.trim().replace(/^@/, '')).filter(Boolean);
+const updCnt = () => { const n = names().length; $('cnt').textContent = n ? n + ' usernames' : ''; $('n_run').textContent = n || ''; };
+$('names').addEventListener('input', updCnt);
+$('file').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return;
+  f.text().then(t => { $('names').value = t; updCnt(); }); e.target.value = ''; });
+$('useFound').onclick = () => fetch('/api/found').then(r => r.text()).then(t => { $('names').value = t; updCnt(); });
+
+/* run control */
+$('start').onclick = async () => {
+  const list = names(); if (!list.length) { show('Add at least one username on the Run page.', 'bad'); return; }
+  const cfg = { usernames: list, fields: fields(), nposts: +$('nposts').value, discover: $('discover').checked,
+                workers: mtOn ? (+$('workers').value || 4) : 1, per_ip: +$('perip').value };
+  const j = await (await fetch('/api/start', { method: 'POST', body: JSON.stringify(cfg) })).json();
+  if (!j.ok) show(j.error, 'bad');
+};
+$('stop').onclick = () => fetch('/api/stop', { method: 'POST' });
+$('clear').onclick = async () => { if (!confirm('Delete all stored results and harvested usernames?')) return;
+  const j = await (await fetch('/api/clear', { method: 'POST' })).json(); if (!j.ok) show(j.error, 'bad'); loadResults(); };
+const q = () => `fields=${encodeURIComponent(fields().join(','))}&nposts=${+$('nposts').value}`;
+$('dl_xlsx').onclick = () => location.href = '/api/download?fmt=xlsx&' + q();
+$('dl_csv').onclick = () => location.href = '/api/download?fmt=csv&' + q();
+$('dl_found').onclick = () => location.href = '/api/download?fmt=found';
+
+function show(t, k) { const m = $('msg'); m.textContent = t; m.className = 'msg ' + (k || ''); m.style.display = t ? 'block' : 'none'; }
+const fmt = s => s >= 3600 ? `<b>${Math.floor(s/3600)}</b> h <b>${Math.floor(s%3600/60)}</b> min` : s >= 60 ? `<b>${Math.floor(s/60)}</b> min <b>${s%60}</b> s` : `<b>${s}</b> s`;
+
+/* proxies */
+let proxyFilter = 'all';
+function matchesFilter(p) {
+  if (proxyFilter === 'all') return true;
+  if (proxyFilter === 'untested') return p.status === 'untested';
+  if (proxyFilter === 'ok') return p.status === 'ok' || p.status === 'rested';
+  if (proxyFilter === 'bad') return p.status === 'blocked' || p.status === 'failed';
+  return true;
+}
+document.querySelectorAll('#pFilter button').forEach(b => b.onclick = () => {
+  proxyFilter = b.dataset.f;
+  document.querySelectorAll('#pFilter button').forEach(x => x.classList.toggle('cur', x === b));
+  loadProxies();
+});
+async function loadProxies() {
+  const list = await (await fetch('/api/proxies')).json();
+  $('n_prx').textContent = list.filter(p => p.enabled).length;
+  const shown = list.filter(matchesFilter);
+  $('prxList').innerHTML = shown.length ? shown.map(p => {
+    const st = p.status === 'ok' ? 'ok' : p.status === 'blocked' ? 'bad' : p.status === 'failed' ? 'bad' : p.status === 'rested' ? 'info' : '';
+    const stTxt = p.status === 'blocked' ? `blocked, rests ${Math.ceil(p.resting_left/60)} min` : p.status;
+    const checked = selectedProxies.has(p.id) ? 'checked' : '';
+    return `<div class="prx" data-id="${p.id}">
+      <input type="checkbox" data-act="sel" ${checked} ${p.id === 'direct' ? 'disabled title="the direct connection can\'t be removed"' : ''}>
+      <span class="sw ${p.enabled ? 'on' : ''}" data-act="toggle" role="switch" aria-checked="${p.enabled}"></span>
+      <span class="u">${p.id === 'direct' ? 'This computer’s IP<small>direct connection</small>' : esc(p.url)}</span>
+      <span class="u">${p.rotate ? esc(p.rotate) : '<small>none</small>'}</span>
+      <span class="st"><span class="tag ${st}">${stTxt}</span><small>${esc(p.note || '')}</small></span>
+      <span><button class="quiet" data-act="test">Test</button>${p.id === 'direct' ? '' : '<button class="quiet bad" data-act="remove">Remove</button>'}</span>
+    </div>`; }).join('') : '<div class="empty" style="padding:22px">No connections match this filter.</div>';
+  selectedProxies = new Set([...selectedProxies].filter(id => list.some(p => p.id === id)));
+  updateProxyBulkBar(shown);
+}
+let selectedProxies = new Set();
+function updateProxyBulkBar(list) {
+  if (list) {
+    const removable = list.filter(p => p.id !== 'direct');
+    $('pSelAll').checked = removable.length > 0 && removable.every(p => selectedProxies.has(p.id));
+    $('pSelAll').indeterminate = selectedProxies.size > 0 && !$('pSelAll').checked;
+  }
+  $('prxBulk').style.display = selectedProxies.size ? 'flex' : 'none';
+  $('prxSelCount').textContent = `${selectedProxies.size} selected`;
+}
+$('pSelAll').addEventListener('change', async e => {
+  const list = await (await fetch('/api/proxies')).json();
+  const visible = list.filter(matchesFilter).filter(p => p.id !== 'direct');
+  if (e.target.checked) visible.forEach(p => selectedProxies.add(p.id));
+  else visible.forEach(p => selectedProxies.delete(p.id));
+  loadProxies();
+});
+$('pRemoveSel').onclick = async () => {
+  if (!selectedProxies.size) return;
+  if (!confirm(`Remove ${selectedProxies.size} proxies?`)) return;
+  await post('/api/proxies/remove_many', { ids: [...selectedProxies] });
+  selectedProxies.clear(); loadProxies();
+};
+$('pTestAll').onclick = () => startTestAll();
+$('pTestSel').onclick = () => startTestAll([...selectedProxies]);
+async function startTestAll(ids) {
+  const j = await post('/api/proxies/test_many', { ids: ids && ids.length ? ids : undefined });
+  if (!j.ok) { show(j.error, 'bad'); return; }
+  pollTestAll();
+}
+let testAllTimer = null;
+async function pollTestAll() {
+  clearTimeout(testAllTimer);
+  const s = await (await fetch('/api/proxies/test_status')).json();
+  $('pTestAll').disabled = s.running; $('pTestSel').disabled = s.running;
+  $('testAllStatus').textContent = s.total ? `${s.done} / ${s.total} tested — ${s.ok} ok` : '';
+  if ($('p_proxies').classList.contains('cur')) loadProxies();
+  if (s.running) testAllTimer = setTimeout(pollTestAll, 700);
+}
+$('prxList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); if (!b || b.dataset.act === 'sel') return;
+  const id = b.closest('.prx').dataset.id, act = b.dataset.act;
+  if (act === 'toggle') await post('/api/proxies/toggle', { id, enabled: !b.classList.contains('on') });
+  if (act === 'remove') { if (!confirm('Remove this proxy?')) return; await post('/api/proxies/remove', { id }); }
+  if (act === 'test') { b.textContent = 'Testing…'; b.disabled = true; await post('/api/proxies/test', { id }); }
+  loadProxies();
+});
+$('prxList').addEventListener('change', e => {
+  if (e.target.dataset.act !== 'sel') return;
+  const id = e.target.closest('.prx').dataset.id;
+  if (e.target.checked) selectedProxies.add(id); else selectedProxies.delete(id);
+  updateProxyBulkBar();
+  fetch('/api/proxies').then(r => r.json()).then(list => updateProxyBulkBar(list));
+});
+$('pAdd').onclick = async () => {
+  const j = await post('/api/proxies/add', { url: $('pUrl').value, rotate: $('pRot').value });
+  if (!j.ok) { show(j.error, 'bad'); return; }
+  $('pUrl').value = ''; $('pRot').value = ''; loadProxies();
+};
+$('pFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  const text = await f.text();
+  const j = await post('/api/proxies/import', { text });
+  if (!j.ok) { show(j.error, 'bad'); return; }
+  show(`Imported ${j.added} proxies${j.skipped ? `, skipped ${j.skipped} already in the pool` : ''}.`, 'ok');
+  loadProxies();
+});
+const post = (u, b) => fetch(u, { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* results table */
+let lastStored = -1;
+async function loadResults() {
+  const { rows, nposts } = await (await fetch('/api/results?n=60')).json();
+  $('n_res').textContent = lastStoredCount || '';
+  $('resEmpty').style.display = rows.length ? 'none' : 'block';
+  const f = fields();
+  const cols = [['username','Username','name'],['status','Status','st']];
+  const add = (k, h, c) => f.includes(k) && cols.push(...(Array.isArray(h) ? h : [[k === 'name' ? 'full_name' : k === 'link' ? 'external_url' : k, h, c]]));
+  add('name', 'Full name'); add('followers', 'Followers', 'num'); add('following', 'Following', 'num');
+  if (f.includes('likes')) for (let i = 1; i <= nposts; i++) cols.push([`likes_post${i}`, `Likes ${i}`, 'num']);
+  if (f.includes('dates')) for (let i = 1; i <= nposts; i++) cols.push([`date_post${i}`, `Date ${i}`]);
+  add('email', 'Email'); add('phone', 'Phone'); add('bio', 'Bio', 'bio'); add('link', 'Link');
+  if (f.includes('flags')) cols.push(['verified', 'Verified'], ['private', 'Private']);
+  const cell = (r, [k, , c]) => { let v = r[k]; if (v === undefined || v === null) v = '';
+    if (k === 'status') { const t = r.status.startsWith('error') ? 'bad' : TAG[r.status] ?? ''; return `<td><span class="tag ${t}">${esc(r.status)}</span></td>`; }
+    if (typeof v === 'boolean') v = v ? 'yes' : 'no';
+    if (c === 'num' && typeof v === 'number') v = v.toLocaleString('en-US');
+    return `<td class="${c || ''}" title="${esc(v)}">${esc(v)}</td>`; };
+  $('resTbl').innerHTML = `<tr>${cols.map(c => `<th>${c[1]}</th>`).join('')}</tr>` +
+    rows.map(r => `<tr>${cols.map(c => cell(r, c)).join('')}</tr>`).join('');
+}
+let lastStoredCount = 0;
+
+/* polling */
+function renderThreads(threads, running) {
+  if (!running || !threads.length) {
+    $('threadsBox').innerHTML = ''; $('threadsEmpty').style.display = 'block';
+    $('threadsEmpty').textContent = running ? 'Starting…' : 'Not running.';
+    return;
+  }
+  $('threadsEmpty').style.display = 'none';
+  $('threadsBox').innerHTML = threads.map(t => {
+    const cls = /scraping/.test(t.action) ? 'busy' : /waiting/.test(t.action) ? 'wait' : /switch|connect|rotat/.test(t.action) ? 'switch' : '';
+    return `<div class="thread-row">
+      <span class="num">#${t.thread}</span>
+      <span class="proxy">${t.proxy ? esc(t.proxy) : '–'}</span>
+      <span class="doing ${cls}"><span class="dot2"></span>${esc(t.action || '–')}</span>
+      <span class="done">${t.done}</span>
+    </div>`;
+  }).join('');
+}
+async function poll() {
+  try {
+    const s = await (await fetch('/api/status')).json();
+    $('done').textContent = s.done; $('total').textContent = 'of ' + s.total;
+    const bar = $('bar'); bar.style.width = (s.total ? 100 * s.done / s.total : 0) + '%'; bar.classList.toggle('run', s.running);
+    $('s_ok').textContent = s.counts.ok; $('s_nf').textContent = s.counts.not_found; $('s_np').textContent = s.counts.no_posts_visible;
+    $('s_bl').textContent = s.counts.blocked; $('s_er').textContent = s.counts.error; $('s_fd').textContent = s.found;
+    $('s_via').textContent = s.proxy_now || '–';
+    $('clock').innerHTML = fmt(s.elapsed);
+    $('rate').innerHTML = (s.elapsed > 5 && s.done ? Math.round(60 * s.done / s.elapsed) : '–') + '<small>per minute</small>';
+    $('start').disabled = s.running; $('stop').disabled = !s.running;
+    const blocked = /blocked/i.test(s.message), failed = /fail/i.test(s.message);
+    $('dot').className = 'dot ' + (s.running ? 'on' : blocked ? 'warn' : failed ? 'bad' : '');
+    $('stateTxt').textContent = s.running ? 'running' : blocked ? 'waiting for an IP' : failed ? 'failed' : s.message ? 'idle' : 'idle';
+    $('log').textContent = s.log.length ? s.log.join('\n') : 'Nothing yet. Add usernames and press Start.'; $('log').scrollTop = 1e9;
+    show(s.message, blocked ? 'warn' : failed ? 'bad' : /finish/i.test(s.message) ? 'ok' : '');
+    renderThreads(s.threads || [], s.running);
+    $('resHint').textContent = s.stored ? `${s.stored} accounts stored` : '';
+    if (s.stored !== lastStoredCount) { lastStoredCount = s.stored; $('n_res').textContent = s.stored || '';
+      if ($('p_results').classList.contains('cur')) loadResults(); }
+    if (s.running && $('p_proxies').classList.contains('cur') && s.elapsed % 5 === 0) loadProxies();
+  } catch (e) {}
+  setTimeout(poll, 1000);
+}
+loadProxies(); loadResults(); pollTestAll(); poll();
+</script></body></html>
